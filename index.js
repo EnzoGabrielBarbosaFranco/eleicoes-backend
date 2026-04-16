@@ -1,4 +1,5 @@
 const express = require('express');
+const fetch = require('node-fetch');
 const cors = require('cors');
 const path = require('path');
 const compression = require('compression');
@@ -133,11 +134,12 @@ app.get('/api/apuracao', async (req, res) => {
         res.json(respostaFinal);
 
     } catch (e) {
-        console.error('Erro real de conexão:', e.message);
+        console.error('🔥 ERRO COMPLETO:', e);
 
         res.status(500).json({
             erro: true,
-            mensagem: 'Servidor do TSE indisponível ou erro interno.'
+            mensagem: 'Erro interno no servidor',
+            detalhe: e.message
         });
     }
 });
