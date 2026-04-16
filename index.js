@@ -18,11 +18,8 @@ const CACHE_TTL = 30000; // 30 segundos
 // =====================
 // 📁 FRONT (opcional)
 // =====================
-const pastaFront = path.join(__dirname, '..', 'eleicoes-front');
-app.use(express.static(pastaFront));
-
 app.get('/', (req, res) => {
-    res.sendFile(path.join(pastaFront, 'index.html'));
+    res.send('API de apuração rodando 🚀');
 });
 
 // =====================
