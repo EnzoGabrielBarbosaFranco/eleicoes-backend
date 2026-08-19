@@ -13,24 +13,7 @@
 	"upload_source_maps": true,
 	"compatibility_flags": [
 		"nodejs_compat"
-	],
-	"r2_buckets": [
-		{
-			"binding": "ELECTION_DATA",
-			"bucket_name": "backend-eleicoes-data"
-		}
-	],
-	"triggers": {
-		"crons": ["*/2 * * * *"]
-	},
-	"vars": {
-		"ALLOW_ON_DEMAND_TSE_FETCH": "false",
-		"TSE_MAX_REQUESTS_PER_SECOND": "5",
-		"ELECTION_FEEDS": [
-			{ "ano": 2022, "turno": 1, "cargo": 1, "uf": "br" },
-			{ "ano": 2026, "turno": 1, "cargo": 1, "uf": "br" }
-		]
-	}
+	]
 	/**
 	 * Smart Placement
 	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement

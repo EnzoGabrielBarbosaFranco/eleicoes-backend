@@ -45,12 +45,6 @@ Na primeira publicação, autentique sua conta da Cloudflare:
 npx wrangler login
 ```
 
-Crie uma vez o armazenamento dos resultados:
-
-```powershell
-npx wrangler r2 bucket create backend-eleicoes-data
-```
-
 Para publicar as correções:
 
 ```powershell
@@ -74,6 +68,5 @@ npm.cmd ci
 npm.cmd run dev
 npm.cmd run deploy -- --dry-run
 npx.cmd wrangler login
-npx.cmd wrangler r2 bucket create backend-eleicoes-data
 npm.cmd run deploy
 ```
