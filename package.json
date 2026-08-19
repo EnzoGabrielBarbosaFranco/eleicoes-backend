@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "deploy": "wrangler deploy",
-    "dev": "wrangler dev",
-    "start": "wrangler dev",
+		"dev": "wrangler dev --var ALLOW_ON_DEMAND_TSE_FETCH:true",
+		"start": "wrangler dev --var ALLOW_ON_DEMAND_TSE_FETCH:true",
     "test": "vitest"
   },
   "devDependencies": {
