@@ -1,0 +1,17 @@
+{
+  "name": "backend-eleicoes-2026",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev --port 8788",
+    "start": "wrangler dev --port 8788",
+    "test": "vitest"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.1.5",
+    "vitest": "^4.1.11",
+    "wrangler": "^4.129.1"
+  }
+}
