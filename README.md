@@ -70,3 +70,7 @@ npm.cmd run deploy -- --dry-run
 npx.cmd wrangler login
 npm.cmd run deploy
 ```
+
+## Backend separado para 2026
+
+O backend atual continua nesta pasta e permanece responsável pela demonstração de 2022. O Worker isolado para os simulados e resultados de 2026 está em [`backend-2026`](./backend-2026/README.md), com instruções próprias para iniciar, testar e publicar.
