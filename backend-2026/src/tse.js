@@ -129,7 +129,11 @@ export function findElectionInCatalog(catalog, params) {
 			}
 
 			const scopes = election.abr || [];
-			const scope = scopes.find((item) => String(item.cd).toLowerCase() === params.uf);
+			// No EA11 do simulado 2026, o TSE anuncia os cargos estaduais na
+			// abrangencia `br`, embora os arquivos EA20 continuem separados por UF.
+			const scope =
+				scopes.find((item) => String(item.cd).toLowerCase() === params.uf) ||
+				scopes.find((item) => String(item.cd).toLowerCase() === 'br');
 			const hasOffice = scope?.cp?.some((item) => String(item.cd) === params.office);
 
 			if (!scope || !hasOffice) {

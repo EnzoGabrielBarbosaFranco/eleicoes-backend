@@ -100,6 +100,22 @@ describe('EA11 de 2026', () => {
 		);
 	});
 
+	it('aceita cargo estadual anunciado na abrangencia nacional do catalogo', () => {
+		const catalogComAbrangenciaNacional = structuredClone(catalog);
+		catalogComAbrangenciaNacional.pl[0].e[0].abr = [{ cd: 'br', cp: [{ cd: 3, ds: 'Governador' }] }];
+
+		const params = { year: '2026', round: '1', office: '3', uf: 'mt' };
+		const election = findElectionInCatalog(catalogComAbrangenciaNacional, params);
+
+		expect(election).toMatchObject({
+			cycle: 'ele2026',
+			electionCode: '700',
+		});
+		expect(buildUnifiedResultUrl(election, params, 'https://resultados-sim.tse.jus.br/simulado/simulado2026')).toBe(
+			'https://resultados-sim.tse.jus.br/simulado/simulado2026/ele2026/700/dados/mt/mt-c0003-e000700-u.json',
+		);
+	});
+
 	it('informa a fase simulada e as eleicoes disponiveis', async () => {
 		const status = await getElectionStatus(
 			{ TSE_ENVIRONMENT: 'simulado', TSE_RESULTS_ROOT: 'https://resultados.tse.jus.br/simulado' },
