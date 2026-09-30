@@ -74,3 +74,5 @@ npm.cmd run deploy
 ## Backend separado para 2026
 
 O backend atual continua nesta pasta e permanece responsável pela demonstração de 2022. O Worker isolado para os simulados e resultados de 2026 está em [`backend-2026`](./backend-2026/README.md), com instruções próprias para iniciar, testar e publicar.
+
+Os resultados de 2022 são snapshots imutáveis dos arquivos oficiais do Portal de Dados Abertos do TSE e ficam armazenados no binding KV `ELECTION_RESULTS_KV`. O Worker não depende mais dos antigos JSONs de 2022 do site Resultados, que foram retirados do ar pelo TSE.

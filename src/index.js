@@ -1,4 +1,4 @@
-import { ApiError, getElectionResult, getElectionStatus, validateElectionParams } from './tse.js';
+import { ApiError, getElectionResult, getElectionStatus, getHistoricalElectionResult, validateElectionParams } from './tse.js';
 
 const CACHE_TTL_SECONDS = 120;
 const CACHE_SCHEMA_VERSION = '3';
@@ -26,7 +26,7 @@ function addCorsHeaders(request, response) {
 
 	headers.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
 	headers.set('Access-Control-Allow-Headers', 'Content-Type');
-	headers.set('Access-Control-Expose-Headers', 'X-Status-Cache');
+	headers.set('Access-Control-Expose-Headers', 'X-Status-Cache, X-Data-Source');
 	headers.set('Vary', appendVary(headers.get('Vary'), 'Origin'));
 
 	if (origin && ALLOWED_ORIGINS.has(origin)) {
@@ -108,7 +108,7 @@ async function handleElectionStatus(url, context) {
 	return response;
 }
 
-async function handleElectionResult(request, url, context) {
+async function handleElectionResult(request, url, env, context) {
 	const params = validateElectionParams(url.searchParams);
 	const canonicalUrl = new URL('/api/apuracao', url.origin);
 	canonicalUrl.searchParams.set('ano', params.year);
@@ -127,9 +127,12 @@ async function handleElectionResult(request, url, context) {
 		return addCorsHeaders(request, response);
 	}
 
-	const result = await getElectionResult(params);
+	const historical = params.year === '2022';
+	const result = historical ? await getHistoricalElectionResult(params, env) : await getElectionResult(params);
+	const ttl = historical ? 86400 : CACHE_TTL_SECONDS;
 	const response = createJsonResponse(result, 200, {
-		'Cache-Control': `public, max-age=${CACHE_TTL_SECONDS}, s-maxage=${CACHE_TTL_SECONDS}`,
+		'Cache-Control': `public, max-age=${ttl}, s-maxage=${ttl}`,
+		'X-Data-Source': historical ? 'kv-history' : 'tse',
 	});
 
 	context.waitUntil(
@@ -143,7 +146,7 @@ async function handleElectionResult(request, url, context) {
 }
 
 export default {
-	async fetch(request, _env, context) {
+	async fetch(request, env, context) {
 		if (request.method === 'OPTIONS') {
 			return addCorsHeaders(request, new Response(null, { status: 204 }));
 		}
@@ -188,7 +191,7 @@ export default {
 			}
 
 			if (url.pathname === '/api/apuracao') {
-				return await handleElectionResult(request, url, context);
+				return await handleElectionResult(request, url, env, context);
 			}
 
 			return addCorsHeaders(

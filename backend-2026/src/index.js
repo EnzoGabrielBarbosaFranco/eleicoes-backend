@@ -6,9 +6,19 @@ import {
 	loadElectionResult,
 	validateElectionParams,
 } from './tse.js';
+import {
+	buildResultSnapshotKey,
+	buildStatusSnapshotKey,
+	getSnapshotNamespace,
+	isFreshSnapshot,
+	readSnapshot,
+	withContingencyMetadata,
+	writeSnapshot,
+} from './snapshot.js';
 
 const CACHE_SCHEMA_VERSION = '1';
 const DEFAULT_CACHE_TTL_SECONDS = 120;
+const inFlightRequests = new Map();
 const ALLOWED_ORIGINS = new Set([
 	'https://eleicoes-front.vercel.app',
 	'http://localhost:5500',
@@ -33,7 +43,10 @@ function addCorsHeaders(request, response) {
 
 	headers.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
 	headers.set('Access-Control-Allow-Headers', 'Content-Type');
-	headers.set('Access-Control-Expose-Headers', 'X-Status-Cache, X-TSE-Environment, Retry-After');
+	headers.set(
+		'Access-Control-Expose-Headers',
+		'X-Status-Cache, X-TSE-Environment, X-Data-Source, X-Data-Age-Seconds, X-Snapshot-Stored-At, Retry-After, Warning',
+	);
 	headers.set('Vary', appendVary(headers.get('Vary'), 'Origin'));
 
 	if (origin && ALLOWED_ORIGINS.has(origin)) {
@@ -102,12 +115,37 @@ async function handleElectionStatus(request, url, env, context) {
 	if (cachedResponse) {
 		const response = new Response(cachedResponse.body, cachedResponse);
 		response.headers.set('X-Status-Cache', 'HIT');
+		response.headers.set('X-Data-Source', edgeCacheSource(response));
 		return addCorsHeaders(request, response);
 	}
 
-	const status = await getElectionStatus(env);
-	const response = createJsonResponse(status, 200, cacheHeaders(env, settings.environment));
-	context.waitUntil(storeInCache(canonicalUrl, response));
+	const namespace = getSnapshotNamespace(env);
+	const snapshotKey = buildStatusSnapshotKey(settings.environment);
+	const snapshot = await safelyReadSnapshot(namespace, snapshotKey);
+	const ttl = getCacheTtl(env);
+
+	if (isFreshSnapshot(snapshot, ttl)) {
+		const response = createSnapshotResponse(snapshot, env, settings.environment, false);
+		context.waitUntil(storeInCache(canonicalUrl, response));
+		response.headers.set('X-Status-Cache', 'MISS');
+		return addCorsHeaders(request, response);
+	}
+
+	let status;
+	try {
+		status = await runSingleFlight(snapshotKey, () => getElectionStatus(env));
+	} catch (error) {
+		if (snapshot) {
+			const response = createSnapshotResponse(snapshot, env, settings.environment, true, error);
+			context.waitUntil(storeInCache(canonicalUrl, response));
+			response.headers.set('X-Status-Cache', 'MISS');
+			return addCorsHeaders(request, response);
+		}
+		throw error;
+	}
+
+	const response = createJsonResponse(status, 200, dataHeaders(env, settings.environment, 'tse'));
+	context.waitUntil(Promise.all([storeInCache(canonicalUrl, response), safelyWriteSnapshot(namespace, snapshotKey, status)]));
 	response.headers.set('X-Status-Cache', 'MISS');
 	return addCorsHeaders(request, response);
 }
@@ -127,21 +165,46 @@ async function handleElectionResult(request, url, env, context) {
 	if (cachedResponse) {
 		const response = new Response(cachedResponse.body, cachedResponse);
 		response.headers.set('X-Status-Cache', 'HIT');
+		response.headers.set('X-Data-Source', edgeCacheSource(response));
 		return addCorsHeaders(request, response);
 	}
 
-	const result = await loadElectionResult(params, env);
-	const response = createJsonResponse(result, 200, cacheHeaders(env, settings.environment));
-	context.waitUntil(storeInCache(canonicalUrl, response));
+	const namespace = getSnapshotNamespace(env);
+	const snapshotKey = buildResultSnapshotKey(settings.environment, params);
+	const snapshot = await safelyReadSnapshot(namespace, snapshotKey);
+	const ttl = getCacheTtl(env);
+
+	if (isFreshSnapshot(snapshot, ttl)) {
+		const response = createSnapshotResponse(snapshot, env, settings.environment, false);
+		context.waitUntil(storeInCache(canonicalUrl, response));
+		response.headers.set('X-Status-Cache', 'MISS');
+		return addCorsHeaders(request, response);
+	}
+
+	let result;
+	try {
+		result = await runSingleFlight(snapshotKey, () => loadElectionResult(params, env));
+	} catch (error) {
+		if (snapshot) {
+			const response = createSnapshotResponse(snapshot, env, settings.environment, true, error);
+			context.waitUntil(storeInCache(canonicalUrl, response));
+			response.headers.set('X-Status-Cache', 'MISS');
+			return addCorsHeaders(request, response);
+		}
+		throw error;
+	}
+
+	const response = createJsonResponse(result, 200, dataHeaders(env, settings.environment, 'tse'));
+	context.waitUntil(Promise.all([storeInCache(canonicalUrl, response), safelyWriteSnapshot(namespace, snapshotKey, result)]));
 	response.headers.set('X-Status-Cache', 'MISS');
 	return addCorsHeaders(request, response);
 }
 
-function cacheHeaders(env, environment) {
-	const ttl = getCacheTtl(env);
+function dataHeaders(env, environment, source, ttl = getJitteredCacheTtl(env)) {
 	return {
-		'Cache-Control': `public, max-age=${ttl}, s-maxage=${ttl}, stale-if-error=600`,
+		'Cache-Control': `public, max-age=${ttl}, s-maxage=${ttl}`,
 		'X-TSE-Environment': environment,
+		'X-Data-Source': source,
 	};
 }
 
@@ -151,6 +214,69 @@ function getCacheTtl(env) {
 		return DEFAULT_CACHE_TTL_SECONDS;
 	}
 	return Math.min(600, Math.max(30, configured));
+}
+
+function getJitteredCacheTtl(env) {
+	const ttl = getCacheTtl(env);
+	const variation = Math.max(1, Math.floor(ttl * 0.15));
+	return ttl - variation + Math.floor(Math.random() * (variation * 2 + 1));
+}
+
+function edgeCacheSource(response) {
+	return response.headers.get('Warning') ? 'edge-cache-stale' : 'edge-cache';
+}
+
+function createSnapshotResponse(snapshot, env, environment, stale, error) {
+	const payload = stale
+		? withContingencyMetadata(snapshot.value, snapshot, describeUpstreamError(error))
+		: snapshot.value;
+	const remainingTtl = stale ? 30 : Math.max(1, getCacheTtl(env) - snapshot.ageSeconds);
+	const headers = {
+		...dataHeaders(env, environment, stale ? 'kv-stale' : 'kv', remainingTtl),
+		'X-Data-Age-Seconds': String(snapshot.ageSeconds),
+		'X-Snapshot-Stored-At': snapshot.storedAt,
+	};
+
+	if (stale) {
+		headers.Warning = '110 - "Resposta em contingencia: ultimo resultado oficial salvo"';
+	}
+
+	return createJsonResponse(payload, 200, headers);
+}
+
+function describeUpstreamError(error) {
+	if (error instanceof ApiError) {
+		return `${error.code}: ${error.message}`;
+	}
+	return 'O TSE esta temporariamente indisponivel.';
+}
+
+async function safelyReadSnapshot(namespace, key) {
+	try {
+		return await readSnapshot(namespace, key);
+	} catch (error) {
+		console.error('Falha ao ler o ultimo resultado salvo:', error);
+		return null;
+	}
+}
+
+async function safelyWriteSnapshot(namespace, key, value) {
+	try {
+		await writeSnapshot(namespace, key, value);
+	} catch (error) {
+		console.error('Falha ao salvar o ultimo resultado valido:', error);
+	}
+}
+
+async function runSingleFlight(key, operation) {
+	const existing = inFlightRequests.get(key);
+	if (existing) {
+		return existing;
+	}
+
+	const pending = operation().finally(() => inFlightRequests.delete(key));
+	inFlightRequests.set(key, pending);
+	return pending;
 }
 
 async function storeInCache(canonicalUrl, response) {

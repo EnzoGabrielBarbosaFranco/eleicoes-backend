@@ -34,6 +34,36 @@ curl.exe "http://127.0.0.1:8788/api/apuracao?ano=2026&turno=1&cargo=1&uf=br"
 
 O front de 2026 deve consultar somente este Worker. Enquanto não houver carga, deve mostrar a espera de 2026, sem buscar dados de 2022. Quando `fase` for `simulado`, deve mostrar claramente `SIMULAÇÃO DO TSE — DADOS DE TESTE`.
 
+## Ativar a contingência persistente
+
+O Worker funciona sem KV, mas o KV é necessário para entregar o último resultado válido quando o TSE estiver temporariamente indisponível.
+
+Crie o namespace uma única vez:
+
+```powershell
+npm run kv:create
+```
+
+Copie o `id` retornado e acrescente o binding abaixo ao `wrangler.jsonc`:
+
+```jsonc
+"kv_namespaces": [
+  {
+    "binding": "ELECTION_RESULTS_KV",
+    "id": "ID_RETORNADO_PELA_CLOUDFLARE"
+  }
+]
+```
+
+Depois de alterar o binding, gere os tipos e execute os testes:
+
+```powershell
+npx wrangler types
+npm test -- --run
+```
+
+Sem esse binding, o cache rápido de borda continua funcionando, mas não existe persistência para contingência.
+
 ## Testar e publicar
 
 Valide antes de publicar:

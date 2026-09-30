@@ -8,6 +8,7 @@
     "deploy:simulado": "wrangler deploy --var TSE_ENVIRONMENT:simulado --var TSE_RESULTS_ROOT:https://resultados-sim.tse.jus.br/simulado/simulado2026 --var CACHE_TTL_SECONDS:120",
     "dev": "wrangler dev --port 8788",
     "dev:simulado": "wrangler dev --port 8788 --var TSE_ENVIRONMENT:simulado --var TSE_RESULTS_ROOT:https://resultados-sim.tse.jus.br/simulado/simulado2026 --var CACHE_TTL_SECONDS:120",
+    "kv:create": "wrangler kv namespace create ELECTION_RESULTS_KV",
     "start": "wrangler dev --port 8788",
     "test": "vitest"
   },

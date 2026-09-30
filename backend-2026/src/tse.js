@@ -8,6 +8,7 @@ export const ELECTION_2026_SCHEDULE = Object.freeze({
 	simulados: [
 		{ datas: ['15/09/2026', '16/09/2026', '17/09/2026'], horariosBrasilia: ['09:00-12:00', '14:00-17:00'] },
 		{ datas: ['22/09/2026', '23/09/2026', '24/09/2026'], horariosBrasilia: ['09:00-12:00', '14:00-17:00'] },
+		{ datas: ['28/09/2026', '29/09/2026'], horariosBrasilia: ['15:00-17:00'] },
 	],
 });
 

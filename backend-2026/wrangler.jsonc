@@ -7,6 +7,12 @@
 		"enabled": true
 	},
 	"upload_source_maps": true,
+	"kv_namespaces": [
+		{
+			"binding": "ELECTION_RESULTS_KV",
+			"id": "24298578b6074f479e34c8ada18d3a0e"
+		}
+	],
 	"vars": {
 		"TSE_ENVIRONMENT": "oficial",
 		"TSE_RESULTS_ROOT": "https://resultados.tse.jus.br/oficial",

@@ -2,7 +2,9 @@ import { createExecutionContext, env, SELF, waitOnExecutionContext } from 'cloud
 import { describe, expect, it } from 'vitest';
 import worker from '../src';
 import {
+	buildHistoricalSnapshotKey,
 	findElectionInCatalog,
+	getHistoricalElectionResult,
 	normalizeLegacyResult,
 	normalizeUnifiedResult,
 	validateElectionParams,
@@ -90,6 +92,34 @@ describe('configuracao eleitoral', () => {
 			electionCode: '700',
 			pleitoCode: '500',
 		});
+	});
+
+	it('monta uma chave historica isolada por turno, cargo e UF', () => {
+		expect(buildHistoricalSnapshotKey({ year: '2022', round: '1', office: '3', uf: 'mt' })).toBe(
+			'eleicoes:historico:2022:1:3:mt',
+		);
+	});
+
+	it('le o resultado historico persistido no KV', async () => {
+		const expected = { ano: 2022, turno: 1, cargo: 1, uf: 'br', percurso: '100,00' };
+		const kv = {
+			async get(key, options) {
+				expect(key).toBe('eleicoes:historico:2022:1:1:br');
+				expect(options).toEqual({ type: 'json', cacheTtl: 86400 });
+				return expected;
+			},
+		};
+
+		await expect(
+			getHistoricalElectionResult({ year: '2022', round: '1', office: '1', uf: 'br' }, { ELECTION_RESULTS_KV: kv }),
+		).resolves.toBe(expected);
+	});
+
+	it('nao inventa resultado historico que nao existe no KV', async () => {
+		const kv = { async get() { return null; } };
+		await expect(
+			getHistoricalElectionResult({ year: '2022', round: '2', office: '3', uf: 'ac' }, { ELECTION_RESULTS_KV: kv }),
+		).rejects.toMatchObject({ status: 404, code: 'RESULTADO_HISTORICO_NAO_ENCONTRADO' });
 	});
 });
 

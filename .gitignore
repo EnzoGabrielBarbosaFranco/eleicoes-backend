@@ -165,3 +165,6 @@ dist
 .env*
 !.env.example
 .wrangler/
+
+# Dados brutos temporarios do TSE usados para gerar os snapshots historicos
+.tmp-2022-data/

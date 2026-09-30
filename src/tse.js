@@ -1,6 +1,7 @@
 export const TSE_RESULTS_BASE_URL = 'https://resultados.tse.jus.br';
 export const TSE_ELECTION_CATALOG_URL = `${TSE_RESULTS_BASE_URL}/oficial/comum/config/ele-c.json`;
 export const TSE_CANDIDATES_2026_URL = 'https://dadosabertos.tse.jus.br/dataset/candidatos-2026';
+export const TSE_RESULTS_2022_DATASET_URL = 'https://dadosabertos.tse.jus.br/dataset/resultados-2022';
 
 const VALID_YEARS = new Set(['2022', '2026']);
 const VALID_ROUNDS = new Set(['1', '2']);
@@ -91,6 +92,37 @@ export function validateElectionParams(searchParams) {
 	}
 
 	return { year, round, office, uf };
+}
+
+export function buildHistoricalSnapshotKey(params) {
+	return `eleicoes:historico:${params.year}:${params.round}:${params.office}:${params.uf}`;
+}
+
+export async function getHistoricalElectionResult(params, env = {}) {
+	if (params.year !== '2022') {
+		throw new ApiError(400, 'ANO_HISTORICO_INVALIDO', 'Apenas os resultados históricos de 2022 estão disponíveis neste armazenamento.');
+	}
+
+	const namespace = env.ELECTION_RESULTS_KV;
+	if (!namespace || typeof namespace.get !== 'function') {
+		throw new ApiError(503, 'ARQUIVO_HISTORICO_NAO_CONFIGURADO', 'O armazenamento dos resultados históricos de 2022 não está configurado.');
+	}
+
+	const key = buildHistoricalSnapshotKey(params);
+	let result;
+	try {
+		result = await namespace.get(key, { type: 'json', cacheTtl: 86400 });
+	} catch (error) {
+		throw new ApiError(502, 'ARQUIVO_HISTORICO_INDISPONIVEL', 'Não foi possível consultar os resultados históricos de 2022.', {
+			cause: error instanceof Error ? error.message : String(error),
+		});
+	}
+
+	if (!result) {
+		throw new ApiError(404, 'RESULTADO_HISTORICO_NAO_ENCONTRADO', 'Não existe resultado histórico de 2022 para esta combinação de turno, cargo e UF.');
+	}
+
+	return result;
 }
 
 export function findElectionInCatalog(catalog, params) {
